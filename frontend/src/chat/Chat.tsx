@@ -4,7 +4,7 @@ interface Messages {
   id: string;
   receiver?: string;
   sender: string;
-  senderNikcname: string;
+  senderNickname: string;
   message: string;
   date: string;
 }
@@ -121,7 +121,7 @@ const Chat: FC = () => {
       <h1>Chat</h1>
       <p title={connected}>Status: {connected}</p>
       <ul>
-        {messages.map(({ id, sender, senderNikcname, message, date }) => (
+        {messages.map(({ id, sender, senderNickname, message, date }) => (
           <li
             key={id}
             id={`#message-${id}`}
@@ -140,7 +140,7 @@ const Chat: FC = () => {
                 itemProp="sender"
                 itemType="https://schema.org/Person"
               >
-                {senderNikcname ? `${senderNikcname} (${sender})` : sender}:{" "}
+                {senderNickname ? `${senderNickname} (${sender})` : sender}:{" "}
               </b>
               {message}
             </p>

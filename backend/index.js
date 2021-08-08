@@ -36,16 +36,40 @@ wss.on("connection", (ws) => {
     date: new Date()
   }));
 
+  wss.clients.forEach(client => {
+    if (client !== ws && client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({
+        message: "Joined the chatroom!",
+        sender: clientId,
+        id: uuidv4(),
+        date: new Date()
+      }));
+    }
+  });
+
+  ws.on('close', () => {
+    wss.clients.forEach(client => {
+      if (client !== ws && client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify({
+          message: "Left the chat room!",
+          sender: clientId,
+          id: uuidv4(),
+          date: new Date()
+        }));
+      }
+    });
+  });
+
   ws.on("message", (payload) => {
     const { type, message, nickname } = JSON.parse(payload);
 
-    if (message) {
+    if (type === "message") {
       wss.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
           client.send(JSON.stringify({
             message,
             sender: clientId,
-            senderNikcname: ws.nickname,
+            senderNickname: ws.nickname,
             id: uuidv4(),
             date: new Date()
           }));
@@ -53,8 +77,19 @@ wss.on("connection", (ws) => {
       });
     }
 
-    if (nickname) {
+    if (type === "nickname") {
       ws.nickname = nickname;
+      wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({
+            message: `My new name is ${nickname}`,
+            sender: clientId,
+            senderNickname: nickname,
+            id: uuidv4(),
+            date: new Date()
+          }));
+        }
+      });
     }
   });
 
