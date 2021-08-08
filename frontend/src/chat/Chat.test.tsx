@@ -99,6 +99,7 @@ if (process.env.REACT_APP_RUN_INTEGRATION_TESTS === "true") {
 
       newWs.close();
 
+      // will return an error due to caching on the backend
       const disconnectMessage = await screen.findByText("Left the chat room!");
 
       expect(disconnectMessage).toBeInTheDocument();
