@@ -35,18 +35,13 @@ wss.on("connection", (ws) => {
     id: uuidv4(),
     date: new Date()
   }));
-  console.log("CONNECTED")
 
   ws.on("message", (payload) => {
     const { type, message, nickname } = JSON.parse(payload);
-    console.log(type);
-    console.log(message);
-    console.log(nickname);
 
     if (message) {
       wss.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
-          console.log("SEND MESSAGE")
           client.send(JSON.stringify({
             message,
             sender: clientId,
