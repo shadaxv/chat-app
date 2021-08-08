@@ -53,6 +53,7 @@ wss.on("connection", (ws) => {
         client.send(JSON.stringify({
           message: "Left the chat room!",
           sender: clientId,
+          senderNickname: ws.nickname,
           id: uuidv4(),
           date: new Date()
         }));
