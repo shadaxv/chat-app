@@ -2,13 +2,29 @@ import express, { urlencoded } from "express";
 import cors from "cors";
 import { createServer } from "http";
 import WebSocket, { WebSocketServer } from "ws";
-import { v4 as uuidv4 } from 'uuid';
-// import { createClient } from "redis";
+import { v4 as uuidv4 } from "uuid";
+import { createClient } from "redis";
+import { promisify } from "util";
 
-// const redisServer = process.env.REDIS_SERVER || "redis://localhost:6379";
+const redisClient = createClient({
+  host: process.env.REDIS_SERVER || "chat_cache",
+  port: process.env.REDIS_PORT || 6379,
+});
 
-// const redisClient = createClient(redisServer);
-// redisClient.subscribe('app:mainChat');
+const RPUSH = promisify(redisClient.RPUSH).bind(redisClient);
+const LPOP = promisify(redisClient.LPOP).bind(redisClient);
+const LLEN = promisify(redisClient.LLEN).bind(redisClient);
+const LRANGE = promisify(redisClient.LRANGE).bind(redisClient);
+const pushWithLimit = async (key, value) => {
+  await RPUSH(key, value);
+
+  const cacheLength = await LLEN("main-chat");
+  if (cacheLength > 100) {
+    for (let i = 0; i < cacheLength - 100; i++) {
+      LPOP("main-chat");
+    }
+  }
+};
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -20,84 +36,105 @@ server.on("request", app);
 app.use(urlencoded({ extended: true }));
 app.use(cors());
 
-app.get("/test", async (req, res) => {
+app.get("/message-history", async (req, res) => {
   res.send(req.query);
 });
 
-wss.on("connection", (ws) => {
+wss.on("connection", async (ws) => {
   const clientId = uuidv4();
   ws.clientId = clientId;
 
-  ws.send(JSON.stringify({
-    message: `Welcome to the Chat App! Your Client ID: ${clientId}`,
-    sender: 'CHAT APP BOT',
-    receiver: clientId,
-    id: uuidv4(),
-    date: new Date()
-  }));
+  ws.send(
+    JSON.stringify({
+      message: `Welcome to the Chat App! Your Client ID: ${clientId}`,
+      sender: "CHAT APP BOT",
+      receiver: clientId,
+      id: uuidv4(),
+      date: new Date(),
+    })
+  );
 
-  wss.clients.forEach(client => {
+  const oldMessages = await LRANGE("main-chat", 0, -1);
+
+  oldMessages.forEach((oldMessage) => {
+    ws.send(oldMessage);
+  });
+
+  const connectionMessagePayload = JSON.stringify({
+    message: "Joined the chatroom!",
+    sender: clientId,
+    id: uuidv4(),
+    date: new Date(),
+  });
+
+  await pushWithLimit("main-chat", connectionMessagePayload);
+
+  wss.clients.forEach((client) => {
     if (client !== ws && client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({
-        message: "Joined the chatroom!",
-        sender: clientId,
-        id: uuidv4(),
-        date: new Date()
-      }));
+      client.send(connectionMessagePayload);
     }
   });
 
-  ws.on('close', () => {
-    wss.clients.forEach(client => {
+  ws.on("close", async () => {
+    const messagePayload = JSON.stringify({
+      message: "Left the chat room!",
+      sender: clientId,
+      senderNickname: ws.nickname,
+      id: uuidv4(),
+      date: new Date(),
+    });
+
+    await pushWithLimit("main-chat", messagePayload);
+
+    wss.clients.forEach((client) => {
       if (client !== ws && client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({
-          message: "Left the chat room!",
-          sender: clientId,
-          senderNickname: ws.nickname,
-          id: uuidv4(),
-          date: new Date()
-        }));
+        client.send(messagePayload);
       }
     });
   });
 
-  ws.on("message", (payload) => {
+  ws.on("message", async (payload) => {
     const { type, message, nickname } = JSON.parse(payload);
 
     if (type === "message") {
-      wss.clients.forEach(client => {
+      const messagePayload = JSON.stringify({
+        message,
+        sender: clientId,
+        senderNickname: ws.nickname,
+        id: uuidv4(),
+        date: new Date(),
+      });
+
+      await pushWithLimit("main-chat", messagePayload);
+
+      wss.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({
-            message,
-            sender: clientId,
-            senderNickname: ws.nickname,
-            id: uuidv4(),
-            date: new Date()
-          }));
+          client.send(messagePayload);
         }
       });
     }
 
     if (type === "nickname") {
       ws.nickname = nickname;
-      wss.clients.forEach(client => {
+
+      const messagePayload = JSON.stringify({
+        message: `My new name is ${nickname}`,
+        sender: clientId,
+        senderNickname: nickname,
+        id: uuidv4(),
+        date: new Date(),
+      });
+
+      await pushWithLimit("main-chat", messagePayload);
+
+      wss.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({
-            message: `My new name is ${nickname}`,
-            sender: clientId,
-            senderNickname: nickname,
-            id: uuidv4(),
-            date: new Date()
-          }));
+          client.send(messagePayload);
         }
       });
     }
   });
 
-  // redisClient.on('message', (channel, message) => {
-  //   console.log({ channel, message });
-  //   ws.send(message);
-  // });
   return clientId;
 });
 
