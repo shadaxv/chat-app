@@ -1,0 +1,17 @@
+services: 
+  chat_app:
+    build:
+      context: .
+    ports:
+      - 3001:3001
+    environment: 
+      - PORT=3001
+      - REDIS_PORT=6379
+      - REDIS_SERVER=chat_cache
+    depends_on:
+      - chat_cache
+
+  chat_cache:
+    image: library/redis:6.2.5
+    ports:
+      - 6379:6379
