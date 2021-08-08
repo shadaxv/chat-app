@@ -65,6 +65,44 @@ if (process.env.REACT_APP_RUN_INTEGRATION_TESTS === "true") {
 
       expect(testMessage).toBeInTheDocument();
     });
+
+    test("change a nickname", async () => {
+      render(<Chat />);
+      const testNickname = "Super Nickname";
+
+      await screen.findByTitle("CONNECTED");
+
+      const nicknameInput = screen.getByRole("textbox", { name: /nickname/i });
+      const changeNicknameButton = screen.getByRole("button", {
+        name: /change nickname/i,
+      });
+      userEvent.type(nicknameInput, testNickname);
+      userEvent.click(changeNicknameButton);
+
+      const testMessage = await screen.findByText(`My new name is ${testNickname}`);
+
+      expect(testMessage).toBeInTheDocument();
+    });
+
+    test("someone joined the chat", async () => {
+      render(<Chat />);
+
+      await screen.findByTitle("CONNECTED");
+
+      expect(process.env.REACT_APP_WEBSOCKET).toBeTruthy();
+
+      const newWs = new WebSocket(process.env.REACT_APP_WEBSOCKET || "");
+
+      const connectMessage = await screen.findByText("Joined the chatroom!");
+
+      expect(connectMessage).toBeInTheDocument();
+
+      newWs.close();
+
+      const disconnectMessage = await screen.findByText("Left the chat room!");
+
+      expect(disconnectMessage).toBeInTheDocument();
+    });
   });
 }
 
