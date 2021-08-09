@@ -15,13 +15,14 @@ const RPUSH = promisify(redisClient.RPUSH).bind(redisClient);
 const LPOP = promisify(redisClient.LPOP).bind(redisClient);
 const LLEN = promisify(redisClient.LLEN).bind(redisClient);
 const LRANGE = promisify(redisClient.LRANGE).bind(redisClient);
-const pushWithLimit = async (key, value) => {
+const pushWithLimit = async (key, value, limit = 100) => {
   await RPUSH(key, value);
 
-  const cacheLength = await LLEN("main-chat");
-  if (cacheLength > 100) {
-    for (let i = 0; i < cacheLength - 100; i++) {
-      LPOP("main-chat");
+  const cacheLength = await LLEN(key);
+  if (cacheLength > limit) {
+    const entriesToRemove = new Array(cacheLength - limit);
+    for await (const _ of entriesToRemove) {
+      await LPOP(key);
     }
   }
 };
